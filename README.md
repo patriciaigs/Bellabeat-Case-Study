@@ -20,7 +20,7 @@ Identify trends in the usage of smart devices to discover potential opportunitie
 - How could these trends help influence Bellabeat marketing strategy?
 
 ### Tools:
-R for Data Cleaning, Data Transformation, Data Visualisation and Data Analysis
+R for Data Cleaning, Data Transformation, Data Visualization and Data Analysis
 
 ### Data Set:
 The data set is publicly available on [Kaggle](https://www.kaggle.com/arashnic/fitbit).

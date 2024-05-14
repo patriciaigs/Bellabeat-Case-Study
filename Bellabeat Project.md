@@ -132,7 +132,7 @@ hourly_steps<- hourly_steps %>%
      mutate(date_time = as.POSIXct(date_time,format ="%m/%d/%Y %I:%M:%S %p" , tz=Sys.timezone()))
 ```
 
-##### Formatting Column Names
+##### 6. Formatting Column Names
 
 To make analysis easier later on the column Activity_Hour (daily_activity) and SleepDay (daily_sleep) will both be renamed to date. 
 
@@ -141,7 +141,7 @@ daily_activity = rename(daily_activity, date = ActivityDate)
 daily_sleep = rename(daily_sleep, date = SleepDay)
 ```
 
-##### View the Datasets 
+##### 7. View the Datasets 
 
 ```{r}
 head(daily_activity)
@@ -217,8 +217,222 @@ summarise (mean_daily_steps = mean(TotalSteps))
 ```{r}
 head(daily_average)
 ```
+![daily_average](https://github.com/patriciaigs/images/blob/main/daily_average.png?raw=true)
+
+```{r}
+# Now it’s possible to categorize all of our users
+
+user_type <- daily_average %>%
+  mutate(user_type = case_when(
+    mean_daily_steps < 5000 ~ "sedentary",
+    mean_daily_steps >= 5000 & mean_daily_steps < 7499 ~ "low active", 
+    mean_daily_steps >= 7500 & mean_daily_steps < 9999 ~ "somewhat active", 
+    mean_daily_steps >= 10000 ~ "active"
+  ))
+```
+
+```{r}
+head(user_type)
+```
+![user_type](https://github.com/patriciaigs/images/blob/main/user_type.png?raw=true)
+
+```{r}
+# Let's check how many users we have in each category
+user_category <- user_type %>%
+ group_by(user_type) %>%
+ summarise(Count = n())
+```
+```{r}
+head(user_category)
+```
+![user_category](https://github.com/patriciaigs/images/blob/main/user_category.png?raw=true)
+
+Since we can see the users are fairly distributed, we can understand that all kinds of different users wear smart devices from people who are more sedentary to the more active. 
+
+##### Steps Throughout the Day
+
+Now we will see when users are more active during their day.
+
+```{r message = FALSE}
+# First the separation of date_time column in the hourly_steps dataset.
+hourly_steps <- hourly_steps %>%
+  separate(date_time, into = c("date", "time"), sep= " ") %>%
+  mutate(date = ymd(date)) 
+```
+
+```{r}
+# Now let's visualize it
+hourly_steps %>%
+ group_by(time) %>%
+ summarize(average_steps = mean(StepTotal)) %>%
+ ggplot() +
+ geom_col(mapping = aes(x=time, y = average_steps, fill = average_steps)) + 
+ labs(title = "Steps throughout the day", x="", y="") + 
+ scale_fill_gradient(low = "green", high = "blue")+
+ theme(axis.text.x = element_text(angle = 90))
+```
+
+![steps](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/steps%20day.png?raw=true)
+
+We can see that users are more active between 8am and 7pm. Users walk more during lunch time (12pm to 2pm) and then during the evening (5pm to 7pm).
+
+##### Correlation Between Steps and Calories
+
+```{r}
+ggplot(data=daily_activity, aes(x=TotalSteps, y=Calories)) + 
+  geom_point() + geom_smooth() + labs(title="Daily Steps vs. Calories")
+```
+
+![calories](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/steps%20vs%20calories.png?raw=true)
+
+It’s possible to see a positive correlation between steps and calories burned. As assumed the more steps walked by the users, the more calories they can burn.
+
+##### Correlation Between Time in Bed and Sleep Time
+
+```{r}
+ggplot(data=daily_sleep, aes(x=TotalMinutesAsleep, y=TotalTimeInBed)) + 
+  geom_point()+ labs(title="Total Minutes Asleep vs. Total Time in Bed")
+```
+
+![sleep](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/sleep%20relation.png?raw=true)
+
+As we can see in the graphic above it’s possible to visualize a linear relationship between total minutes asleep and total time in bed. 
+
+##### Relation between User Type and Sleeping Patterns
+
+```{r}
+# First verify the average minutes every user spends sleeping
+sleep_pattern <- daily_sleep %>%
+  group_by(Id) %>%
+  summarise (mean_daily_sleep = mean(TotalMinutesAsleep))
+```
+```{r}
+head(sleep_pattern)
+```
+
+![sleep_pattern](https://github.com/patriciaigs/images/blob/main/sleep_pattern.png?raw=true)
+
+```{r}
+# Now we will classify three different sleeping patterns types
+sleep_by_usertype <- sleep_pattern %>%
+  mutate(sleep_by_usertype = case_when(
+  mean_daily_sleep < 360 ~ "Bad Sleep",
+  mean_daily_sleep > 360 & mean_daily_sleep <= 480 ~ "Normal Sleep", 
+  mean_daily_sleep > 480 ~ "Over Sleep"))
+```
+```{r}
+head(sleep_by_usertype)
+```
+
+![sleep_user_type](https://github.com/patriciaigs/images/blob/main/sleep_user_type.png?raw=true)
+
+```{r}
+# Now to understand an average of the amount of sleep everyone is getting, let’s count the frequency of each sleep_type 
+sleep_type_counts <- sleep_by_usertype %>%
+ group_by(sleep_by_usertype) %>%
+ summarise(count = n())
+
+#Now to visualize it
+ggplot(sleep_type_counts, aes(x = sleep_by_usertype, y = count)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Sleep Types",
+   x = "Sleep Type",
+   y = "Frequency") +
+   theme_minimal()
+```
+![sleep_types](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/sleep%20types.png?raw=true)
+
+It's possible to verify that the largest group of users have a normal sleeping pattern. 
+
+To further the analysis it's necessary to understand the relationship between sleeping pattern and user_type. Remember that user_type was defined by the amount of steps given in average. 
+
+```{r}
+# First it's necessary to join information from daily_activity and daily_sleep 
+merged <- merge(sleep_by_usertype, user_type, by=c('Id'))
+
+# To count the frequency of each combination of user_type and sleep_type
+sleep_type_counts <- merged %>%
+  group_by(user_type, sleep_by_usertype) %>%
+  summarise(count = n())
+ 
+# Define custom colors for visualization
+custom_colors <- c("#e26d5c", "#ffe1a8", "#c9cba3")
+
+# Now, create a stacked bar plot with custom colors
+ggplot(sleep_type_counts, aes(x = user_type, y = count, fill = sleep_by_usertype)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Relationship between User Type and Sleep Type",
+       x = "User Type",
+       y = "Frequency",
+       fill = "Sleep Type") +
+  scale_fill_manual(values = custom_colors) + # Setting custom colors
+  theme_minimal()
+```
+![sleep_vs_activity](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/sleep%20vs%20activity.png?raw=true)
+
+In this bar chart we can verify that the active users are the ones with the most regular pattern of normal sleep. In the other hand, we can verify that the sedentary users are the ones with the worst nights of sleep.  
+
+##### Days Using Smart Devices
+
+In this next step, we want to verify how often do the users use their device. 
+
+```{r}
+# First to know how often each ID was logged in/ how often they wore their devices.
+id_counts <- daily_activity %>%
+  group_by(Id) %>%
+  summarise(count = n())
+
+head(id_counts)
+```
+![id_counts](https://github.com/patriciaigs/images/blob/main/id%20counts.png?raw=true)
+
+The results show us that daily activity for each user ranged from 4 to 31 times, so to classify their activities
+
+•	high use - users between 21 and 31 days.
+
+•	moderate use - users between 10 and 20 days.
+
+•	low use - users between 1 and 10 days.
+
+```{r}
+# Add a column for the classification
+id_counts$class <- cut(id_counts$count, breaks = c(0, 10, 20, 31), labels = c("Low Use", "Moderate Use", "High Use"))
+
+# Calculate the percentage of IDs in each category
+class_counts <- table(id_counts$class)
+class_percentages <- prop.table(class_counts) * 100
+
+# Customize colors for chart
+custom_colors <- c("#ffba49", "#20a39e", "#ef5b5b")
+
+#Create pie chart
+pie(class_percentages, 
+    labels = paste(names(class_percentages), "\n", round(class_percentages, 1), "%"), 
+    main = "Daily Use", 
+    col = custom_colors)
+```
+
+![id_usage](https://github.com/patriciaigs/Bellabeat-Case-Study/blob/main/Images/daily%20use.png?raw=true)
+
+We can now verify than most users fall into the high use category. 
 
 
+## Recommendations 
 
+Since it was founded in 2013, Bellabeat has been empowering women with knowledge about their own health and habits. 
 
+To respond to our business task and help Bellabeat continue their mission, I would advice to use own tracking data for a more complete analysis. The datasets used have a small sample and don’t have demographic details. Knowing that the main target are young and adult women we should find more trends to be able to create a marketing strategy focused on them.  
 
+After analyzing the FitBit Fitness Tracker Data, I found some insights that may help improve the Bellabeat app. 
+
+1.	Recommendation: Personalized recommendations and experiences.
+
+  •	Description: Users were found to be more active at lunch time and evenings (between 5pm and 7pm). The evening hours, probably, represent the hours after work that people go to the gym or for a walk. Bellabeat can use this time to provide personalized recommendations and experiences to users, such as customized workout routines. Because, sometimes, people want to do something, but they are lost and don’t know exactly what they should be doing. With this we could help motivate users to do a workout designed for them, having their experience and interests in mind. 
+  
+2.	Recommendation: Community challenges. 
+
+  •	Description: Some people won’t get motivated just by getting a simple notification. So, Bellabeat can create engaging activity challenges with all the community that encourage users to stay more active during the day and reach their fitness goals. A gamification system could be incorporated, consisting in reaching different levels based on the number of steps taken per day. Users would get rewards or incentives for completing challenges. 
+  
+3.	Recommendation: Educational content for sleep improvement. 
+
+  •	Description: More active users were found to have better sleeping patterns than users who are sedentary. Bellabeat app can provide educational resources on the importance of physical activity for overall health, especially its impact on sleep quality. The app can offer articles and videos explaining the science in an easy-to-understand way. 
